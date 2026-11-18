@@ -1,0 +1,60 @@
+name: Windows preview
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aac-link-windows-preview
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.5'
+          cache: false
+      - name: Verify predictor and transcript reader
+        run: go test -v -count=1 ./...
+      - name: Smoke test the native Windows controls and credential storage
+        shell: pwsh
+        run: |
+          go build -trimpath -buildvcs=false -o "$env:RUNNER_TEMP/AACLink-smoke.exe" .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:RUNNER_TEMP/AACLink-smoke.exe" --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build portable Windows application
+        shell: pwsh
+        env:
+          CGO_ENABLED: '0'
+          GOARCH: amd64
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          go build -trimpath -buildvcs=false -ldflags="-s -w -H=windowsgui" -o dist/AACLink.exe .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $hash = (Get-FileHash dist/AACLink.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  AACLink.exe" | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AACLink-Windows-x64
+          path: dist/*
+          if-no-files-found: error
+      - name: Publish first preview if not already released
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v0.1.0-preview --repo "${{ github.repository }}" 2>$null
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          gh release create v0.1.0-preview dist/AACLink.exe dist/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "AAC Link v0.1.0 preview" --notes-file docs/release-notes.md --prerelease
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

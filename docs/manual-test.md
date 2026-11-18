@@ -1,0 +1,9 @@
+# Windows and AAC manual verification
+
+1. Start with Notepad or a standard Windows Edit field. Feed a transcript ending with “Would you like coffee or tea?” Tap Preview in Settings to verify appearance without inserting anything.
+2. Close settings, focus the actual test field, and use the hotkey. In Hybrid, verify the two reply buttons and three word buttons, followed by Dismiss. Tap a reply. Verify the text appears in the same field without submitting it and that the strip hides. Repeat with clipboard paste, which intentionally overwrites the clipboard.
+3. In a standard Edit control, start with “I want wa”. Look for “water”, choose it, and verify that only “ter ” was inserted. A custom control may not expose the draft. In that case the app should label the words as context-only.
+4. With the strip open, Alt+Tab or move focus to another field. Verify the overlay closes and nothing is sent. Verify Dismiss in each position, hotkey toggle, cooldown, and each auto-hide setting. Hold the pointer on a response while changing the transcript and verify its label stays put until the pointer leaves the strip.
+5. Pause from the tray. Append a private transcript line. Resume, open the strip, and verify only newly appended conversation is used. Repeat after recreating the transcript at the same path. At the next filename rollover, select the new file explicitly.
+6. On the AAC device, repeat with the real message bar and an ordinary, non-sensitive test transcript. Check both injection methods, access by touch and the intended eye-gaze or switch software, cursor stability, full-screen/topmost behavior, and that the app never submits or speaks. Try the built-in offline engine with networking disabled.
+7. On a laptop, test one installed Ollama model, then stop Ollama and verify offline results remain visible. For cloud checks use your own API keys and a synthetic transcript, with cloud sharing first disabled and then explicitly enabled.
