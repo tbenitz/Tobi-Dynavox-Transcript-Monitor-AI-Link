@@ -20,6 +20,7 @@ var timeouts = []string{"Off", "10 seconds", "15 seconds", "30 seconds"}
 var cooldowns = []string{"Off", "250 ms", "500 ms", "1000 ms"}
 
 type settings struct {
+	Source, Folder                                                                         string
 	Path, Unit, Hotkey, Mode, Injection, Position, Theme, CloseSide, Target, Engine, Model string
 	Poll, Context, Timeout, Cooldown, Height, Font, Gap, KeyboardHeight                    int
 	X, Y                                                                                   int
@@ -63,6 +64,8 @@ func normalize(s settings) settings {
 		s.Hotkey = d.Hotkey
 	}
 	s.Path = strings.Trim(strings.TrimSpace(s.Path), "\"")
+	s.Folder = strings.Trim(strings.TrimSpace(s.Folder), "\"")
+	s.Source = selectString(s.Source, sourceFixed, transcriptSources)
 	s.Target = strings.TrimSpace(s.Target)
 	s.Model = strings.TrimSpace(s.Model)
 	return s

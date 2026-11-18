@@ -48,13 +48,13 @@ jobs:
           name: AACLink-Windows-x64
           path: dist/*
           if-no-files-found: error
-      - name: Publish first preview if not already released
+      - name: Publish daily transcript preview if not already released
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view v0.1.0-preview --repo "${{ github.repository }}" 2>$null
+          gh release view v0.1.1-preview --repo "${{ github.repository }}" 2>$null
           if ($LASTEXITCODE -eq 0) { exit 0 }
-          gh release create v0.1.0-preview dist/AACLink.exe dist/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "AAC Link v0.1.0 preview" --notes-file docs/release-notes.md --prerelease
+          gh release create v0.1.1-preview dist/AACLink.exe dist/SHA256SUMS.txt --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "AAC Link v0.1.1 preview" --notes-file docs/daily-release-notes.md --prerelease
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

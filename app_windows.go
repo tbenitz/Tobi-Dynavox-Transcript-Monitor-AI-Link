@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -58,7 +59,7 @@ type app struct {
 	pendingAI                                          bool
 	cancel                                             context.CancelFunc
 	results                                            chan result
-	watch                                              follower
+	watch                                              transcriptMonitor
 	moving                                             bool
 	drag                                               point
 	dragFrom                                           rect
@@ -177,7 +178,7 @@ func main() {
 	a.startPolling()
 	u("SetTimer", a.hwnd, tickTimer, 100, 0)
 	a.poll()
-	if a.s.Path == "" {
+	if a.s.transcriptPath(time.Now()) == "" {
 		a.openSettings()
 	}
 	a.ready = true
@@ -234,13 +235,21 @@ func (a *app) poll() {
 	if a.paused {
 		return
 	}
+	now := time.Now()
+	previous := a.watch.path
+	raw, err, switched := a.watch.read(a.s, now)
+	if switched && previous != "" && !a.preview {
+		// Do not leave yesterday's buttons available under a resting pointer.
+		a.hide()
+	}
 	var heard, status string
-	if a.s.Path == "" {
+	switch {
+	case a.watch.path == "":
 		status = "No transcript selected"
-	} else if s, e := a.watch.read(a.s.Path); e != nil {
-		status = "Waiting for transcript file"
-	} else {
-		heard = recent(s, a.s.Unit, a.s.Context)
+	case err != nil:
+		status = "Waiting for " + filepath.Base(a.watch.path)
+	default:
+		heard = recent(raw, a.s.Unit, a.s.Context)
 		if heard == "" {
 			status = "Waiting for new speech"
 		}
@@ -260,8 +269,19 @@ func (a *app) poll() {
 		a.refresh()
 	}
 }
+func (a *app) sourceRolledOver() bool {
+	if !a.preview && !a.paused && a.s.transcriptPath(time.Now()) != a.watch.path {
+		a.poll()
+		return true
+	}
+	return false
+}
+
 func (a *app) tick() {
 	if !a.visible {
+		return
+	}
+	if a.sourceRolledOver() {
 		return
 	}
 	if !a.preview && !a.target.same(foreground()) {
@@ -291,6 +311,9 @@ func (a *app) toggle(preview bool) {
 	}
 	if !mayOpen(time.Now(), a.closed, a.s.Cooldown) {
 		return
+	}
+	if !preview {
+		a.poll()
 	}
 	d := foreground()
 	if !preview && (d.root == 0 || d.pid == uint32(win(kernel, "GetCurrentProcessId")) || d.focus == 0 ||
@@ -409,6 +432,9 @@ func (a *app) requestAI() {
 	}()
 }
 func (a *app) receive() {
+	if a.visible {
+		a.sourceRolledOver()
+	}
 	for {
 		select {
 		case r := <-a.results:
@@ -511,6 +537,9 @@ func (a *app) selectSuggestion(i int) {
 	if !a.visible || i < 0 || i >= len(a.current) {
 		return
 	}
+	if a.sourceRolledOver() {
+		return
+	}
 	if a.preview {
 		a.flash("Preview • " + a.current[i].Text)
 		a.opened = time.Now()
@@ -563,7 +592,7 @@ func (a *app) pause() {
 	a.transcript = ""
 	a.transcriptStatus = ""
 	if !a.paused {
-		a.watch.resume(a.s.Path)
+		a.watch.resume(a.s, time.Now())
 		a.poll()
 	}
 	a.balloon("AAC Link", map[bool]string{true: "Transcript and AI paused.", false: "Watching only newly appended transcript text."}[a.paused])
@@ -573,11 +602,7 @@ func (a *app) reload() {
 	if a.paused {
 		return
 	}
-	if a.watch.protected {
-		a.watch.resume(a.s.Path)
-	} else {
-		a.watch = follower{}
-	}
+	a.watch.reload(a.s, time.Now())
 	a.poll()
 	a.balloon("AAC Link", "Transcript reader reset.")
 }

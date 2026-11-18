@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf16"
 	"unsafe"
@@ -116,13 +117,16 @@ func (s *settingsWindow) openPage(a *app, page int) {
 	c := s.s
 	switch page {
 	case 0:
-		s.edit(a, "path", "Live transcript .txt file", c.Path, 106, 324, 0)
-		s.make(a, "BUTTON", "Browse…", 0x10000, 113, 618, 106, 82, 31, true)
-		s.combo(a, "poll", "Check for changes", fmt.Sprintf("%d ms", c.Poll), 152, rates)
-		s.combo(a, "unit", "Keep recent context in", c.Unit, 198, []string{"sentences", "words"})
-		s.edit(a, "context", "Number of sentences or words", strconv.Itoa(c.Context), 244, 125, 0x2000)
-		s.note(a, "AAC Link reads the end of your existing UTF-8 transcript. It does not record audio or make a second transcript file. The tray menu can pause monitoring and discard the paused portion.", 303, 62)
-		s.note(a, "For a dated transcript, select the new file when your transcription tool rolls over, or have that tool also write to a fixed live.txt file.", 383, 62)
+		s.combo(a, "source", "Transcript source", c.Source, 105, transcriptSources)
+		s.edit(a, "path", "Single transcript .txt file", c.Path, 147, 324, 0)
+		s.make(a, "BUTTON", "Browse…", 0x10000, 113, 618, 147, 82, 31, true)
+		s.edit(a, "folder", "Daily transcript folder", c.Folder, 189, 324, 0)
+		s.make(a, "BUTTON", "Browse…", 0x10000, 115, 618, 189, 82, 31, true)
+		s.combo(a, "poll", "Check for changes", fmt.Sprintf("%d ms", c.Poll), 231, rates)
+		s.combo(a, "unit", "Keep recent context in", c.Unit, 273, []string{"sentences", "words"})
+		s.edit(a, "context", "Number of sentences or words", strconv.Itoa(c.Context), 315, 125, 0x2000)
+		s.note(a, "Daily files mode opens today's file in that folder (for example, 2026-11-18.txt). It switches at midnight using this PC's local date and waits if the new file hasn't been created yet.", 367, 77)
+
 	case 1:
 		s.edit(a, "hotkey", "Summon / dismiss shortcut", c.Hotkey, 105, 273, 0)
 		s.make(a, "BUTTON", "Record shortcut", 0x10000, 114, 568, 105, 133, 31, true)
@@ -182,6 +186,7 @@ func (s *settingsWindow) capture() {
 	p := &s.s
 	switch s.page {
 	case 0:
+		p.Source, p.Folder = chosen("source", transcriptSources), t("folder")
 		p.Path, p.Unit, p.Context, p.Poll = t("path"), chosen("unit", []string{"sentences", "words"}), n("context", p.Context), duration("poll", rates)
 	case 1:
 		p.Hotkey, p.Timeout, p.Cooldown, p.CloseSide, p.LargeClose, p.Target = t("hotkey"), duration("timeout", timeouts), duration("delay", cooldowns), chosen("side", []string{"Left", "Right"}), selected("large"), t("target")
@@ -231,6 +236,38 @@ func (s *settingsWindow) browse() {
 		setText(s.items["path"], string(utf16.Decode(b[:i])))
 	}
 }
+
+type browseInfo struct {
+	owner, root     uintptr
+	display, title  *uint16
+	flags           uint32
+	callback, param uintptr
+	image           int32
+}
+
+func (s *settingsWindow) browseFolder() {
+	ole := syscall.NewLazyDLL("ole32.dll")
+	hr := int32(win(ole, "CoInitializeEx", 0, 2))
+	flags := uint32(1) // BIF_RETURNONLYFSDIRS
+	if hr >= 0 {
+		defer win(ole, "CoUninitialize")
+		flags |= 0x40 | 0x10 | 0x200 // Modern dialog, edit field, no New Folder button.
+	}
+	var display, path [260]uint16
+	details := browseInfo{owner: s.hwnd, display: &display[0], title: wp("Select the folder containing the dated transcript files"), flags: flags}
+	item := win(shell, "SHBrowseForFolderW", ptr(&details))
+	if item == 0 {
+		return
+	}
+	defer win(ole, "CoTaskMemFree", item)
+	if win(shell, "SHGetPathFromIDListW", item, ptr(&path[0])) != 0 {
+		end := slices.Index(path[:], uint16(0))
+		if end >= 0 {
+			setText(s.items["folder"], string(utf16.Decode(path[:end])))
+		}
+	}
+}
+
 func (a *app) persist() {
 	s := a.settings
 	s.capture()
@@ -264,12 +301,12 @@ func (a *app) persist() {
 		msg(s.hwnd, "Settings not saved", e.Error())
 		return
 	}
-	pathChanged := next.Path != a.s.Path
+	sourceChanged := next.Source != a.s.Source || (next.Source == sourceDaily && next.Folder != a.s.Folder) || (next.Source != sourceDaily && next.Path != a.s.Path)
 	a.hide()
 	a.s = next
 	a.updateFonts()
-	if pathChanged && !a.paused {
-		a.watch = follower{}
+	if sourceChanged && !a.paused {
+		a.watch = transcriptMonitor{}
 		a.transcript = ""
 	}
 	a.startPolling()
@@ -348,6 +385,9 @@ func settingsWnd(hwnd, message, w, l uintptr) uintptr {
 			return 0
 		case 113:
 			s.browse()
+			return 0
+		case 115:
+			s.browseFolder()
 			return 0
 		case 114:
 			s.record = true

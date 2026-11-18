@@ -5,7 +5,7 @@ A portable Windows x64 tray app that turns a local live transcript into touch-fr
 ## Get started
 
 1. Download **AACLink.exe** from [Releases](https://github.com/tbenitz/Tobi-Dynavox-Transcript-Monitor-AI-Link/releases) and run it on Windows. This is an unsigned portable preview with no installer or administrator requirement.
-2. Select the UTF-8 `.txt` file being updated by your existing transcription software, then save. Keep the default **Built-in offline** engine for a first test.
+2. In the **Transcript** tab, choose **Single file** and select the live UTF-8 `.txt` file, or choose **Daily files (YYYY-MM-DD.txt)** and select the folder containing the dated files. Save your settings. Keep the default **Built-in offline** engine for a first test.
 3. Open Notepad and place the cursor in the document. Press **F9**, then tap a suggestion. It should insert text at the caret without pressing Enter. To test layout only, pick **Show overlay (preview)** in the tray.
 4. On the AAC device, focus the message bar and press the same hotkey or use an AAC macro that sends it. You can also bind a macro to run `AACLink.exe --toggle` while leaving the message bar in the foreground. Try simulated typing first and clipboard paste second. Set an **AAC window title filter** once you know your window's title.
 5. Tap **Dismiss**, press the hotkey again, or let the timeout hide the strip. Right-click the tray icon for pause/resume, settings, reload, and exit. Double-click it to open settings.
@@ -30,7 +30,7 @@ Cloud predictions are **off by default**. A cloud selection requires a key and a
 
 ## Settings
 
-- **Transcript** — file picker, 250/500/1,000 ms polling, and a recent word or sentence window. Use a stable file path such as `live.txt`; if the producer switches to a dated filename, select that file or configure it to also write a stable live file. Pause ignores transcript text written while paused for the current session. It does not pause the separate transcription app.
+- **Transcript** — file picker, 250/500/1,000 ms polling, and a recent word or sentence window. **Single file** keeps using one path, such as `live.txt`. **Daily files** follows the Windows PC’s local date, so `2026-11-18.txt` changes to `2026-11-19.txt` at midnight. If the new file hasn’t been created, AAC Link waits for it instead of reusing yesterday’s transcript. Pause ignores transcript text written while paused for the current session. It does not pause the separate transcription app.
 - **Triggers** — record or type a global shortcut, change the timeout and cooldown, position the prominent red Dismiss button, and optionally restrict insertion to a matching window title.
 - **Suggestions & AI** — Quick replies, Next words, or Hybrid with two replies and up to three words. Choose insertion method, optional trailing space or period, and whether to close after use. An incomplete draft word is completed without retyping its existing prefix. If fewer words match, the app shows fewer buttons rather than inserting unrelated completions. Suggestion tiles do not rearrange while the pointer rests over the overlay.
 - **Appearance** — top of the current monitor, above a keyboard of configurable height, or custom drag position; lock toggle, button height, text size, spacing, and three themes. No vendor integration is assumed for automatic keyboard placement.
